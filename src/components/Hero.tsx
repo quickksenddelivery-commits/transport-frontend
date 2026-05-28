@@ -92,7 +92,7 @@ export default function Hero() {
   const s = SLIDES[slide]
 
   return (
-    <section className="relative flex flex-col overflow-hidden" style={{ minHeight: '100vh' }}>
+    <section className="relative flex flex-col overflow-hidden" style={{ minHeight: '100vh', background: '#1565C0' }}>
 
       {/* ── Keyframe definitions ─────────────────────────── */}
       <style>{`
