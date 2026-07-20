@@ -276,3 +276,80 @@ body {
   from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ── BrandVideo — looping animated brand banner ──────────────
+   One shared 14s cycle so every layer resyncs on loop restart. */
+@keyframes brandLogoReveal {
+  0%   { opacity: 0; transform: scale(0.7); }
+  6%   { opacity: 1; transform: scale(1); }
+  92%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.9); }
+}
+@keyframes brandWordmarkReveal {
+  0%, 10% { opacity: 0; transform: translateY(14px); }
+  16%     { opacity: 1; transform: translateY(0); }
+  92%     { opacity: 1; transform: translateY(0); }
+  100%    { opacity: 0; transform: translateY(-8px); }
+}
+@keyframes brandTaglineReveal {
+  0%, 18% { opacity: 0; }
+  24%     { opacity: 1; }
+  92%     { opacity: 1; }
+  100%    { opacity: 0; }
+}
+@keyframes brandStat1Reveal {
+  0%, 30% { opacity: 0; transform: translateY(8px); }
+  36%     { opacity: 1; transform: translateY(0); }
+  92%     { opacity: 1; transform: translateY(0); }
+  100%    { opacity: 0; }
+}
+@keyframes brandStat2Reveal {
+  0%, 38% { opacity: 0; transform: translateY(8px); }
+  44%     { opacity: 1; transform: translateY(0); }
+  92%     { opacity: 1; transform: translateY(0); }
+  100%    { opacity: 0; }
+}
+@keyframes brandStat3Reveal {
+  0%, 46% { opacity: 0; transform: translateY(8px); }
+  52%     { opacity: 1; transform: translateY(0); }
+  92%     { opacity: 1; transform: translateY(0); }
+  100%    { opacity: 0; }
+}
+@keyframes brandRouteDraw {
+  0%, 28% { stroke-dashoffset: 900; opacity: 0; }
+  32%     { opacity: 1; }
+  85%     { stroke-dashoffset: 0; opacity: 1; }
+  92%     { opacity: 1; }
+  100%    { opacity: 0; }
+}
+@keyframes brandPlaneTravel {
+  0%, 28% { offset-distance: 0%; opacity: 0; }
+  32%     { opacity: 1; }
+  85%     { offset-distance: 100%; opacity: 1; }
+  92%     { opacity: 1; }
+  100%    { opacity: 0; }
+}
+.brand-logo     { animation: brandLogoReveal     14s ease-in-out infinite; }
+.brand-wordmark { animation: brandWordmarkReveal 14s ease-in-out infinite; }
+.brand-tagline  { animation: brandTaglineReveal  14s ease-in-out infinite; }
+.brand-stat-1   { animation: brandStat1Reveal    14s ease-in-out infinite; }
+.brand-stat-2   { animation: brandStat2Reveal    14s ease-in-out infinite; }
+.brand-stat-3   { animation: brandStat3Reveal    14s ease-in-out infinite; }
+.brand-route    { animation: brandRouteDraw      14s ease-in-out infinite; }
+.brand-plane {
+  offset-path: path("M 60 360 C 320 200, 480 420, 700 260 S 1080 120, 1140 100");
+  offset-rotate: 0deg;
+  animation: brandPlaneTravel 14s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-logo, .brand-wordmark, .brand-tagline,
+  .brand-stat-1, .brand-stat-2, .brand-stat-3,
+  .brand-route, .brand-plane {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+  .brand-plane { offset-distance: 45%; }
+}
