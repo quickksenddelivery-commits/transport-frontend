@@ -4,7 +4,7 @@ import type { JSX } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { api } from '../lib/api'
+import { api, BASE } from '../lib/api'
 import type { PublicShipment } from '../lib/api'
 
 /* ─── Types ────────────────────────────────────────────────── */
@@ -510,7 +510,7 @@ function PackageDetails({ ship }: { ship: typeof SHIPMENTS[string] }) {
           ] as const).map(({ label, path }) => (
             <a
               key={path}
-              href={`https://transport-backend-1-9zsn.onrender.com/api/documents/${ship.trackingNum}/${path}`}
+              href={`${BASE}/api/documents/${ship.trackingNum}/${path}`}
               target="_blank"
               rel="noreferrer"
               className="flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50 transition-all group text-left"

@@ -2,6 +2,17 @@
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
+## Backend setup
+
+This app talks to a separate Express + MongoDB API (see the sibling `transport-backend` repo). It is not bundled here.
+
+1. In `transport-backend`, copy `.env.example` to `.env` and fill in `MONGODB_URI`, `JWT_SECRET`, `JWT_REFRESH_SECRET` (and optionally `RESEND_API_KEY`/`ADMIN_SECRET`).
+2. `npm install && npm run dev` — starts the API on `http://localhost:5000` by default (`PORT` in `.env`).
+3. `node scripts/seed-admin.js` — creates the initial admin user you sign in with at `/admin/login`.
+4. Point this app's `VITE_API_URL` (in `.env`, see `.env.example`) at the backend's URL — `http://localhost:5000` for local dev, or your deployed API URL in production.
+
+If the backend sets `ADMIN_SECRET`, also set `VITE_ADMIN_SECRET` here to the same value so the `x-admin-secret` header is sent on login.
+
 Currently, two official plugins are available:
 
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
