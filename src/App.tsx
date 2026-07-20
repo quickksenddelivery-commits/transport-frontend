@@ -112,7 +112,33 @@ function PageLoader() {
   )
 }
 
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+function PageTransition({ children }: { children: React.ReactNode }) {
+  const [visible, setVisible] = useState(prefersReducedMotion())
+
+  useEffect(() => {
+    if (prefersReducedMotion()) return
+    const raf = requestAnimationFrame(() => setVisible(true))
+    return () => cancelAnimationFrame(raf)
+  }, [])
+
+  return (
+    <div
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'none' : 'translateY(14px)',
+        transition: 'opacity 0.45s cubic-bezier(0.16,1,0.3,1), transform 0.45s cubic-bezier(0.16,1,0.3,1)',
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
 function PublicLayout() {
+  const { pathname } = useLocation()
   return (
     <>
       {/* Skip link — visible on focus for keyboard/screen-reader users */}
@@ -126,7 +152,9 @@ function PublicLayout() {
       <ScrollToTop />
       <Navbar />
       <span id="main-content" tabIndex={-1} />
-      <Outlet />
+      <PageTransition key={pathname}>
+        <Outlet />
+      </PageTransition>
       <QuickTrack />
       <Footer />
     </>
