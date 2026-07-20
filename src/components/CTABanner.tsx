@@ -19,6 +19,12 @@ export default function CTABanner() {
           animation: 'float 6s ease-in-out infinite',
         }}
       />
+      {/* Text-legibility scrim — the orange stretch of the gradient is too
+          light for white text to clear WCAG AA on its own (~2.3:1) */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: 'radial-gradient(ellipse 95% 90% at 50% 45%, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.32) 60%, rgba(0,0,0,0.1) 90%, transparent 100%)' }}
+      />
 
       <div ref={ref} className="container mx-auto px-6 relative z-10 text-center">
         {/* Icon */}
@@ -39,7 +45,7 @@ export default function CTABanner() {
           Ready to Ship Your First Package?
         </h2>
         <p
-          className={`text-white/80 text-xl mb-10 max-w-2xl mx-auto leading-relaxed ${inView ? 'animate-reveal-up' : 'opacity-0'}`}
+          className={`text-white/90 text-xl mb-10 max-w-2xl mx-auto leading-relaxed ${inView ? 'animate-reveal-up' : 'opacity-0'}`}
           style={inView ? { animationDelay: '0.2s' } : {}}
         >
           Join 15,000+ businesses that trust Accessiblexpress for fast, reliable, and insured shipping to 120+ countries.
@@ -64,12 +70,12 @@ export default function CTABanner() {
 
         {/* Trust signals */}
         <div
-          className={`flex flex-wrap items-center justify-center gap-6 text-white/70 text-sm ${inView ? 'animate-reveal-up' : 'opacity-0'}`}
+          className={`flex flex-wrap items-center justify-center gap-6 text-white/85 text-sm ${inView ? 'animate-reveal-up' : 'opacity-0'}`}
           style={inView ? { animationDelay: '0.42s' } : {}}
         >
           {['No credit card required', 'First shipment 20% off', '24/7 support included', 'Cancel anytime'].map(t => (
             <div key={t} className="flex items-center gap-1.5 hover:text-white transition-colors duration-200">
-              <svg className="w-4 h-4 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/>
               </svg>
               {t}
