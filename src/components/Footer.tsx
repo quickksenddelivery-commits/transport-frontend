@@ -137,10 +137,11 @@ export default function Footer() {
           <p className="text-white/30 text-sm">© {YEAR} Accessiblexpress Ltd. All rights reserved.</p>
           <div className="flex gap-5 text-white/30 text-xs">
             {[
-              { label: 'Privacy',  href: '/legal/privacy' },
-              { label: 'Terms',    href: '/legal/terms' },
-              { label: 'Cookies',  href: '/legal/cookies' },
-              { label: 'Sitemap',  href: '/' },
+              { label: 'Privacy',     href: '/legal/privacy' },
+              { label: 'Terms',       href: '/legal/terms' },
+              { label: 'Cookies',     href: '/legal/cookies' },
+              { label: 'Sitemap',     href: '/' },
+              { label: 'Admin Login', href: '/admin/login' },
             ].map(l => (
               <Link key={l.label} to={l.href} className="hover:text-white/60 transition-colors" style={{ textDecoration: 'none' }}>{l.label}</Link>
             ))}
