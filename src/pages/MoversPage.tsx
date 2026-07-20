@@ -10,7 +10,7 @@ const SERVICES: ServiceCardData[] = [
     title: 'Household Relocation',
     desc: 'From studio apartments to large family homes — we pack, load, transport, and unpack your belongings with the care they deserve, including specialty items like pianos and antiques.',
     img: 'https://images.pexels.com/photos/4246120/pexels-photo-4246120.jpeg?auto=compress&cs=tinysrgb&w=900&h=600&fit=crop',
-    to: '/contact',
+    to: '/movers/household-goods',
     featured: false,
   },
   {
@@ -19,7 +19,7 @@ const SERVICES: ServiceCardData[] = [
     title: 'Commercial & Office Moving',
     desc: 'Our commercial moving team executes office and business relocations outside business hours to minimise disruption. From desks to server rooms — with a dedicated project coordinator.',
     img: 'https://images.pexels.com/photos/1797428/pexels-photo-1797428.jpeg?auto=compress&cs=tinysrgb&w=900&h=600&fit=crop',
-    to: '/contact',
+    to: '/movers/commercial-goods',
     featured: true,
   },
   {
@@ -28,7 +28,7 @@ const SERVICES: ServiceCardData[] = [
     title: 'International Relocation',
     desc: 'We manage the entire international move — pre-move surveys, customs clearance, export/import documentation, door-to-door worldwide delivery, and settling-in support.',
     img: 'https://images.pexels.com/photos/5025521/pexels-photo-5025521.jpeg?auto=compress&cs=tinysrgb&w=900&h=600&fit=crop',
-    to: '/contact',
+    to: '/movers/international-moving',
     featured: false,
   },
   {
@@ -37,7 +37,7 @@ const SERVICES: ServiceCardData[] = [
     title: 'Storage & Packing',
     desc: 'Secure, climate-controlled storage available short or long-term with 24/7 CCTV. Professional packing materials, fragile item wrapping, and easy access to your items anytime.',
     img: 'https://images.pexels.com/photos/4246019/pexels-photo-4246019.jpeg?auto=compress&cs=tinysrgb&w=900&h=600&fit=crop',
-    to: '/contact',
+    to: '/movers/storage-packing',
     featured: true,
   },
 ]

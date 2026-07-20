@@ -10,7 +10,7 @@ const SERVICES: ServiceCardData[] = [
     title: 'Express Delivery',
     desc: 'When speed is everything, our Express service guarantees same-day (domestic) or next-day (international) delivery with real-time GPS tracking every step of the way.',
     img: 'https://images.pexels.com/photos/4246019/pexels-photo-4246019.jpeg?auto=compress&cs=tinysrgb&w=800&h=600&fit=crop',
-    to: '/contact',
+    to: '/services/express-delivery',
     featured: false,
   },
   {
@@ -19,7 +19,7 @@ const SERVICES: ServiceCardData[] = [
     title: 'Air Freight',
     desc: 'Access 500+ airports worldwide. 2–4 day international transit with customs documentation included, dangerous goods certified, and temperature-controlled options.',
     img: 'https://images.pexels.com/photos/747679/pexels-photo-747679.jpeg?auto=compress&cs=tinysrgb&w=800&h=600&fit=crop',
-    to: '/freight#air',
+    to: '/freight/air-freight',
     featured: true,
   },
   {
@@ -28,7 +28,7 @@ const SERVICES: ServiceCardData[] = [
     title: 'Sea Freight',
     desc: 'The most economical solution for large shipments. FCL & LCL options to 300+ ports globally with port-to-port or door-to-door service.',
     img: 'https://images.pexels.com/photos/906982/pexels-photo-906982.jpeg?auto=compress&cs=tinysrgb&w=800&h=600&fit=crop',
-    to: '/freight#ocean',
+    to: '/freight/ocean-freight',
     featured: false,
   },
   {
@@ -37,7 +37,7 @@ const SERVICES: ServiceCardData[] = [
     title: 'Road Transport',
     desc: 'Our fleet of 2,000+ vehicles covers major trade routes across Africa, Europe, and Asia. Refrigerated, oversize, and cross-border with real-time tracking.',
     img: 'https://images.pexels.com/photos/3802510/pexels-photo-3802510.jpeg?auto=compress&cs=tinysrgb&w=800&h=600&fit=crop',
-    to: '/freight#road',
+    to: '/freight/road-freight',
     featured: false,
   },
   {
@@ -46,7 +46,7 @@ const SERVICES: ServiceCardData[] = [
     title: 'Warehousing & Fulfillment',
     desc: 'Climate-controlled storage at 50+ locations. Pick, pack & ship with an inventory management portal and returns processing included.',
     img: 'https://images.pexels.com/photos/1797428/pexels-photo-1797428.jpeg?auto=compress&cs=tinysrgb&w=800&h=600&fit=crop',
-    to: '/contact',
+    to: '/services/warehousing',
     featured: true,
   },
   {

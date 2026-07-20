@@ -10,7 +10,7 @@ const SERVICES: ServiceCardData[] = [
     title: 'Air Freight',
     desc: 'Access 500+ airports worldwide. 2–4 day international transit, dangerous goods certified, with full documentation and customs clearance end-to-end.',
     img: 'https://images.pexels.com/photos/747679/pexels-photo-747679.jpeg?auto=compress&cs=tinysrgb&w=800&h=500&fit=crop',
-    to: '/contact',
+    to: '/freight/air-freight',
     featured: false,
   },
   {
@@ -19,7 +19,7 @@ const SERVICES: ServiceCardData[] = [
     title: 'Ocean Freight',
     desc: 'The most economical solution for bulk shipments. FCL & LCL to 300+ ports globally with door-to-door delivery and real-time container tracking.',
     img: 'https://images.pexels.com/photos/906982/pexels-photo-906982.jpeg?auto=compress&cs=tinysrgb&w=800&h=500&fit=crop',
-    to: '/contact',
+    to: '/freight/ocean-freight',
     featured: true,
   },
   {
@@ -28,7 +28,7 @@ const SERVICES: ServiceCardData[] = [
     title: 'Road Freight',
     desc: 'Our 2,000+ vehicle fleet covers major trade corridors across Africa, Europe, and Asia. FTL & LTL with refrigerated and oversize options.',
     img: 'https://images.pexels.com/photos/3802510/pexels-photo-3802510.jpeg?auto=compress&cs=tinysrgb&w=800&h=500&fit=crop',
-    to: '/contact',
+    to: '/freight/road-freight',
     featured: false,
   },
   {
@@ -37,7 +37,7 @@ const SERVICES: ServiceCardData[] = [
     title: 'SOC Movements',
     desc: 'Full visibility on your shipper-owned containers across multi-leg journeys — tracking, depot management, and a dedicated coordinator.',
     img: 'https://images.pexels.com/photos/1427107/pexels-photo-1427107.jpeg?auto=compress&cs=tinysrgb&w=800&h=500&fit=crop',
-    to: '/contact',
+    to: '/freight/soc-movements',
     featured: true,
   },
 ]

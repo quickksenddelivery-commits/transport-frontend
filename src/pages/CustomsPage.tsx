@@ -10,7 +10,7 @@ const SERVICES: ServiceCardData[] = [
     title: 'Import Clearance',
     desc: 'Our licensed customs brokers manage the full import clearance process — classification, duty calculation, entry filing, and release — so your goods clear without delays or penalties.',
     img: 'https://images.pexels.com/photos/6169668/pexels-photo-6169668.jpeg?auto=compress&cs=tinysrgb&w=900&h=600&fit=crop',
-    to: '/contact',
+    to: '/customs/import-clearance',
     featured: false,
   },
   {
@@ -19,7 +19,7 @@ const SERVICES: ServiceCardData[] = [
     title: 'Export Clearance',
     desc: 'We prepare all export declarations, obtain necessary permits, and ensure your shipment departs without regulatory issues — with electronic filing at all ports.',
     img: 'https://images.pexels.com/photos/4483942/pexels-photo-4483942.jpeg?auto=compress&cs=tinysrgb&w=900&h=600&fit=crop',
-    to: '/contact',
+    to: '/customs/export-clearance',
     featured: true,
   },
   {
@@ -28,7 +28,7 @@ const SERVICES: ServiceCardData[] = [
     title: 'Trade Consulting',
     desc: 'Our trade compliance consultants help you understand regulations, optimise duty payments, and avoid costly errors — with FTA analysis and staff training.',
     img: 'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=900&h=600&fit=crop',
-    to: '/contact',
+    to: '/customs/trade-consulting',
     featured: false,
   },
   {
@@ -37,7 +37,7 @@ const SERVICES: ServiceCardData[] = [
     title: "Importer's Representative",
     desc: 'We act as your official importer of record in markets requiring a local representative — assuming full compliance responsibility in 50+ countries.',
     img: 'https://images.pexels.com/photos/3183150/pexels-photo-3183150.jpeg?auto=compress&cs=tinysrgb&w=900&h=600&fit=crop',
-    to: '/contact',
+    to: '/customs/importer-representative',
     featured: true,
   },
 ]
