@@ -1,8 +1,25 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { JSX } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { api, clearToken, type AdminShipment, type ShipStatus, type ShipEvent, type Subscriber } from '../lib/api'
-import { getCityCoords } from '../data/cityCoords'
+import { geocodeLocation } from '../lib/geocode'
+import AdminTour, { type TourStep } from '../components/AdminTour'
+import GeoStatus from '../components/GeoStatus'
+
+const TOUR_SEEN_KEY = 'qsd_admin_tour_seen'
+
+const TOUR_STEPS: TourStep[] = [
+  { tab: 'overview', target: '[data-tour="sidebar-nav"]', title: 'Welcome to your Admin Dashboard', body: 'This sidebar takes you everywhere — Overview, Shipments, Create, Track, and Subscribers.', placement: 'right' },
+  { tab: 'overview', target: '[data-tour="stat-cards"]', title: 'Dashboard Overview', body: 'A live snapshot of your shipment volume, what’s in transit, delivered, and anything that needs attention.', placement: 'bottom' },
+  { tab: 'overview', target: '[data-tour="quick-actions"]', title: 'Quick Actions', body: 'Jump straight to creating a shipment, tracking one, or viewing everything — no need to use the sidebar.', placement: 'left' },
+  { tab: 'overview', target: '[data-tour="recent-shipments"]', title: 'Recent Shipments', body: 'The last few shipments to change, right on the overview so you don’t have to go looking.', placement: 'top' },
+  { tab: 'shipments', target: '[data-tour="shipments-search"]', title: 'Find Any Shipment', body: 'Search by tracking ID, sender, or recipient name, and filter by status.', placement: 'bottom' },
+  { tab: 'shipments', target: '[data-tour="shipments-table"]', title: 'Manage Shipments', body: 'View details, edit info, update status, or delete a shipment — all from this table.', placement: 'top' },
+  { tab: 'create', target: '[data-tour="create-form"]', title: 'Create a New Shipment', body: 'Fill in sender, recipient, and package details yourself, or use a quick-fill template to see it in action. A tracking number is generated automatically.', placement: 'bottom' },
+  { tab: 'track', target: '[data-tour="track-search"]', title: 'Track & Update', body: 'Search a tracking number to see its full timeline, update its status, and add events. Locations you enter are matched to map coordinates automatically, and the customer is emailed on status changes.', placement: 'bottom' },
+  { tab: 'subscribers', target: '[data-tour="subscribers-list"]', title: 'Newsletter Subscribers', body: 'Everyone who has subscribed to shipping updates from the public site, with a quick active/unsubscribed breakdown.', placement: 'bottom' },
+  { tab: 'overview', target: '[data-tour="sign-out"]', title: 'That’s the Tour!', body: 'You can restart this tour anytime from the “Take a Tour” button in the header. Sign out securely from here when you’re done.', placement: 'right' },
+]
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 type AdminTab = 'overview' | 'shipments' | 'create' | 'track' | 'subscribers'
@@ -65,7 +82,7 @@ function OverviewTab({ shipments, onNavigate }: { shipments: AdminShipment[]; on
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div data-tour="stat-cards" className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Total Shipments', value: total,      icon: <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}><path d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/></svg>, color: '#0f2444', bg: '#e8f0fe' },
           { label: 'In Transit',      value: inTransit,  icon: <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}><path d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg>, color: '#2563eb', bg: '#dbeafe' },
@@ -106,7 +123,7 @@ function OverviewTab({ shipments, onNavigate }: { shipments: AdminShipment[]; on
         </div>
 
         {/* Quick actions */}
-        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+        <div data-tour="quick-actions" className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
           <h3 className="font-bold text-slate-800 mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 gap-3">
             {[
@@ -127,7 +144,7 @@ function OverviewTab({ shipments, onNavigate }: { shipments: AdminShipment[]; on
       </div>
 
       {/* Recent shipments */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div data-tour="recent-shipments" className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="font-bold text-slate-800">Recent Shipments</h3>
           <button onClick={() => onNavigate('shipments')} className="text-sm font-semibold" style={{ color: '#1565C0' }}>
@@ -324,12 +341,18 @@ function ShipmentsTab({
     if (!selected) return
     try {
       await onUpdate(selected.id, newStatus, eventNote || undefined)
-      setSelected(prev => prev ? { ...prev, status: newStatus } : null)
       setShowUpdateModal(false)
+      setSelected(null)
       setEventNote('')
     } catch (err) {
       alert((err as Error).message || 'Update failed. Please try again.')
     }
+  }
+
+  const closeUpdateModal = () => {
+    setShowUpdateModal(false)
+    setSelected(null)
+    setEventNote('')
   }
 
   return (
@@ -342,7 +365,7 @@ function ShipmentsTab({
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div data-tour="shipments-search" className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1 max-w-sm">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
@@ -360,8 +383,54 @@ function ShipmentsTab({
         </select>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      {/* Mobile cards — the table's action buttons scroll off-screen on
+          phones with no visual hint, so phones get a stacked card layout
+          instead of relying on horizontal table scroll */}
+      <div data-tour="shipments-table" className="sm:hidden space-y-3">
+        {filtered.length === 0 ? (
+          <div className="text-center py-14 text-slate-400 text-sm bg-white rounded-2xl border border-slate-100">No shipments found</div>
+        ) : filtered.map(s => (
+          <div key={s.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="min-w-0">
+                <p className="text-slate-800 font-semibold text-sm truncate">{s.sender.name} <span className="text-slate-300">→</span> {s.recipient.name}</p>
+                <p className="text-slate-400 text-xs truncate">{s.recipient.city}, {s.recipient.country}</p>
+                <p className="text-[10px] font-mono text-slate-300 mt-0.5">{s.trackingNumber || s.id.slice(-8)}</p>
+              </div>
+              <span className="shrink-0"><StatusBadge status={s.status} /></span>
+            </div>
+            <div className="flex items-center justify-between text-xs text-slate-500 mb-3 pb-3 border-b border-slate-100">
+              <span className="capitalize font-medium">{s.service} · {s.weight} kg</span>
+              <span>{s.eta ? new Date(s.eta).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'ETA —'}</span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              <button onClick={() => setSelected(s)}
+                className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-blue-50 text-blue-600 active:scale-95 transition-transform">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <span className="text-[10px] font-semibold">View</span>
+              </button>
+              <button onClick={() => openEdit(s)}
+                className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-green-50 text-green-600 active:scale-95 transition-transform">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
+                <span className="text-[10px] font-semibold">Edit</span>
+              </button>
+              <button onClick={() => openUpdate(s)}
+                className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-yellow-50 text-yellow-600 active:scale-95 transition-transform">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+                <span className="text-[10px] font-semibold">Status</span>
+              </button>
+              <button onClick={() => { if (window.confirm(`Delete ${s.trackingNumber}?`)) onDelete(s.id) }}
+                className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-red-50 text-red-500 active:scale-95 transition-transform">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                <span className="text-[10px] font-semibold">Delete</span>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div data-tour="shipments-table" className="hidden sm:block bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[640px]">
             <thead>
@@ -405,8 +474,8 @@ function ShipmentsTab({
                   {/* Actions — icon buttons */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex gap-1">
-                      {/* View */}
-                      <button onClick={() => navigate(`/admin/shipments/${s.id}`)} title="View details"
+                      {/* View — opens the quick-preview panel instantly, no page navigation (faster on mobile) */}
+                      <button onClick={() => setSelected(s)} title="View details"
                         className="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                       </button>
@@ -508,6 +577,11 @@ function ShipmentsTab({
                     </div>
                   ))}
                 </div>
+                <button onClick={() => navigate(`/admin/shipments/${selected.id}`)}
+                  className="mt-2 text-xs font-semibold flex items-center gap-1" style={{ color: '#1565C0' }}>
+                  Manage timeline events
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7"/></svg>
+                </button>
               </div>
 
               <div className="flex gap-3">
@@ -529,7 +603,7 @@ function ShipmentsTab({
       {/* Update status modal */}
       {showUpdateModal && selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowUpdateModal(false)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeUpdateModal} />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <h3 className="font-black text-slate-800 text-lg mb-1">Update Status</h3>
             <p className="text-slate-500 text-sm mb-5 font-mono">{selected.id}</p>
@@ -548,7 +622,7 @@ function ShipmentsTab({
                   className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-yellow-400" />
               </div>
               <div className="flex gap-3 pt-1">
-                <button onClick={() => { setShowUpdateModal(false); setEventNote('') }}
+                <button onClick={closeUpdateModal}
                   className="flex-1 py-3 rounded-xl font-semibold text-sm border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors">
                   Cancel
                 </button>
@@ -797,7 +871,7 @@ function CreateTab({ onCreate }: { onCreate: (body: Omit<AdminShipment, 'id' | '
       </div>
 
       {/* Sample templates */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+      <div data-tour="create-form" className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-3">Quick Fill — Sample Shipments</p>
         <div className="flex flex-wrap gap-2">
           {SAMPLE_SHIPMENTS.map(s => (
@@ -927,17 +1001,33 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
   const [addLoc, setAddLoc] = useState('')
   const [addLat, setAddLat] = useState('')
   const [addLng, setAddLng] = useState('')
+  const [addGeoStatus, setAddGeoStatus] = useState<'idle' | 'checking' | 'found' | 'notfound'>('idle')
   const [addDate, setAddDate] = useState(todayStr())
   const [addTime, setAddTime] = useState(nowTime())
   const [addType, setAddType] = useState<ShipEvent['type']>('info')
   const [addBusy, setAddBusy] = useState(false)
+  const addGeoReq = useRef(0)
 
   const setAddLocation = (v: string) => {
     setAddLoc(v)
-    const coords = getCityCoords(v)
-    if (coords && !addLat && !addLng) {
-      setAddLat(String(coords[0]))
-      setAddLng(String(coords[1]))
+    setAddGeoStatus('idle')
+    setAddLat('')
+    setAddLng('')
+  }
+
+  const resolveAddLocation = async (value?: string) => {
+    const v = (value ?? addLoc).trim()
+    if (!v) { setAddGeoStatus('idle'); return }
+    setAddGeoStatus('checking')
+    const reqId = ++addGeoReq.current
+    const result = await geocodeLocation(v)
+    if (reqId !== addGeoReq.current) return
+    if (result) {
+      setAddLat(String(result.lat))
+      setAddLng(String(result.lng))
+      setAddGeoStatus('found')
+    } else {
+      setAddGeoStatus('notfound')
     }
   }
 
@@ -947,18 +1037,34 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
   const [editLoc, setEditLoc] = useState('')
   const [editLat, setEditLat] = useState('')
   const [editLng, setEditLng] = useState('')
+  const [editGeoStatus, setEditGeoStatus] = useState<'idle' | 'checking' | 'found' | 'notfound'>('idle')
   const [editDate, setEditDate] = useState('')
   const [editTime, setEditTime] = useState('')
   const [editType, setEditType] = useState<ShipEvent['type']>('info')
   const [editBusy, setEditBusy] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const editGeoReq = useRef(0)
 
   const setEditLocation = (v: string) => {
     setEditLoc(v)
-    const coords = getCityCoords(v)
-    if (coords && !editLat && !editLng) {
-      setEditLat(String(coords[0]))
-      setEditLng(String(coords[1]))
+    setEditGeoStatus('idle')
+    setEditLat('')
+    setEditLng('')
+  }
+
+  const resolveEditLocation = async () => {
+    const v = editLoc.trim()
+    if (!v) { setEditGeoStatus('idle'); return }
+    setEditGeoStatus('checking')
+    const reqId = ++editGeoReq.current
+    const result = await geocodeLocation(v)
+    if (reqId !== editGeoReq.current) return
+    if (result) {
+      setEditLat(String(result.lat))
+      setEditLng(String(result.lng))
+      setEditGeoStatus('found')
+    } else {
+      setEditGeoStatus('notfound')
     }
   }
 
@@ -979,7 +1085,7 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
     if (!result) return
     const desc = eventNote || `Status updated to: ${STATUS_CFG[newStatus].label}`
     const loc = eventLocation || 'Accessiblexpress Control Centre'
-    const newEvent: ShipEvent = { time: nowTime(), date: todayStr(), location: loc, desc, type: 'sort' }
+    const newEvent: ShipEvent = { time: nowTime(), date: todayStr(), location: loc, desc, type: 'info' }
     try {
       const { notified, notifyError } = await onUpdate(result.id, newStatus, eventNote || undefined, eventLocation || undefined)
       setResult(prev => prev ? { ...prev, status: newStatus, events: [...prev.events, newEvent] } : null)
@@ -1044,6 +1150,7 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
     setEditLoc(ev.location)
     setEditLat(ev.lat != null ? String(ev.lat) : '')
     setEditLng(ev.lng != null ? String(ev.lng) : '')
+    setEditGeoStatus(ev.lat != null && ev.lng != null ? 'found' : 'idle')
     setEditDate(ev.date)
     setEditTime(ev.time)
     setEditType(ev.type)
@@ -1090,7 +1197,7 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
         <p className="text-slate-500 text-sm">Search and manage any shipment by tracking ID.</p>
       </div>
 
-      <div className="flex gap-3 max-w-xl">
+      <div data-tour="track-search" className="flex gap-3 max-w-xl">
         <input
           type="text" value={query} onChange={e => setQuery(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && search()}
@@ -1182,13 +1289,9 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
                         </div>
                         <div>
                           <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Location</label>
-                          <input value={editLoc} onChange={e => setEditLocation(e.target.value)}
+                          <input value={editLoc} onChange={e => setEditLocation(e.target.value)} onBlur={resolveEditLocation}
                             className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-yellow-400" />
-                          {editLoc && (
-                            getCityCoords(editLoc)
-                              ? <p className="text-[10px] text-green-600 mt-1">📍 Coordinates recognized</p>
-                              : <p className="text-[10px] text-amber-600 mt-1">⚠ Not recognized — set lat/lng below</p>
-                          )}
+                          <GeoStatus status={editGeoStatus} />
                         </div>
                         <div>
                           <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Type</label>
@@ -1196,16 +1299,6 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
                             className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-yellow-400 bg-white">
                             {(['pickup','transit','delivery','exception','info'] as const).map(t => <option key={t} value={t}>{t}</option>)}
                           </select>
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Latitude <span className="normal-case font-normal">(optional)</span></label>
-                          <input type="number" step="any" value={editLat} onChange={e => setEditLat(e.target.value)}
-                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-yellow-400" />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Longitude <span className="normal-case font-normal">(optional)</span></label>
-                          <input type="number" step="any" value={editLng} onChange={e => setEditLng(e.target.value)}
-                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-yellow-400" />
                         </div>
                         <div>
                           <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Date</label>
@@ -1284,7 +1377,7 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
                 { label: 'Held at Customs',   desc: 'Package held at customs pending clearance.',                   loc: 'Customs',                         type: 'exception' as const },
               ] as { label: string; desc: string; loc: string; type: ShipEvent['type'] }[]).map(t => (
                 <button key={t.label}
-                  onClick={() => { setAddDesc(t.desc); setAddLocation(t.loc); setAddType(t.type) }}
+                  onClick={() => { setAddDesc(t.desc); setAddLocation(t.loc); setAddType(t.type); resolveAddLocation(t.loc) }}
                   className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:border-yellow-400 hover:bg-yellow-50 hover:text-yellow-800 transition-all">
                   {t.label}
                 </button>
@@ -1300,14 +1393,10 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
               </div>
               <div>
                 <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Location</label>
-                <input value={addLoc} onChange={e => setAddLocation(e.target.value)}
+                <input value={addLoc} onChange={e => setAddLocation(e.target.value)} onBlur={() => resolveAddLocation()}
                   placeholder="e.g. Dubai Cargo Hub"
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-yellow-400" />
-                {addLoc && (
-                  getCityCoords(addLoc)
-                    ? <p className="text-[10px] text-green-600 mt-1">📍 Coordinates recognized — will show on the tracking map</p>
-                    : <p className="text-[10px] text-amber-600 mt-1">⚠ Not a recognized city — add coordinates below so this appears on the map</p>
-                )}
+                <GeoStatus status={addGeoStatus} />
               </div>
               <div>
                 <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Type</label>
@@ -1315,18 +1404,6 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-yellow-400 bg-white">
                   {(['pickup','transit','delivery','exception','info'] as const).map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Latitude <span className="normal-case font-normal">(optional)</span></label>
-                <input type="number" step="any" value={addLat} onChange={e => setAddLat(e.target.value)}
-                  placeholder="e.g. 6.5244"
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-yellow-400" />
-              </div>
-              <div>
-                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Longitude <span className="normal-case font-normal">(optional)</span></label>
-                <input type="number" step="any" value={addLng} onChange={e => setAddLng(e.target.value)}
-                  placeholder="e.g. 3.3792"
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-yellow-400" />
               </div>
               <div>
                 <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Date</label>
@@ -1410,7 +1487,7 @@ function SubscribersTab() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      <div data-tour="subscribers-list" className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {[
           { label: 'Total',       value: subscribers.length,              icon: <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}><path d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>, color: '#0f2444', bg: '#e8f0fe' },
           { label: 'Active',      value: active,                                           icon: <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>, color: '#16a34a', bg: '#dcfce7' },
@@ -1505,6 +1582,16 @@ export default function AdminDashboard() {
   const [shipments, setShipments] = useState<AdminShipment[]>([])
   const [loadingShipments, setLoadingShipments] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [tourActive, setTourActive] = useState(false)
+
+  useEffect(() => {
+    if (!loadingShipments && !localStorage.getItem(TOUR_SEEN_KEY)) {
+      setTourActive(true)
+      localStorage.setItem(TOUR_SEEN_KEY, '1')
+    }
+  }, [loadingShipments])
+
+  const closeTour = () => setTourActive(false)
 
   useEffect(() => {
     api.listShipments()
@@ -1522,14 +1609,14 @@ export default function AdminDashboard() {
   const handleCreate = async (body: Omit<AdminShipment, 'id' | 'createdAt' | 'events'>): Promise<string> => {
     const created = await api.createShipment(body)
     setShipments(prev => [created, ...prev])
-    return created.id
+    return created.trackingNumber
   }
 
   const handleUpdate = async (id: string, status: ShipStatus, note?: string, location?: string) => {
     const updatedShipment = await api.updateShipment(id, { status })
     const desc = note || `Status updated to: ${STATUS_CFG[status].label}`
     const loc = location || 'Accessiblexpress Control Centre'
-    const newEvent: ShipEvent = { time: nowTime(), date: todayStr(), location: loc, desc, type: 'sort' }
+    const newEvent: ShipEvent = { time: nowTime(), date: todayStr(), location: loc, desc, type: 'info' }
     await api.addEvent(id, newEvent)
     setShipments(prev => prev.map(s =>
       s.id !== id ? s : { ...s, status, events: [...s.events, newEvent] }
@@ -1590,7 +1677,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav data-tour="sidebar-nav" className="flex-1 px-3 py-4 space-y-1">
           {NAV_ITEMS.map(item => {
             const active = tab === item.key
             return (
@@ -1620,7 +1707,7 @@ export default function AdminDashboard() {
               <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>admin@accessiblexpress</p>
             </div>
           </div>
-          <button onClick={logout}
+          <button onClick={logout} data-tour="sign-out"
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
             style={{ color: 'rgba(255,255,255,0.4)' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(21,101,192,0.15)'; e.currentTarget.style.color = '#ff8080' }}
@@ -1666,6 +1753,14 @@ export default function AdminDashboard() {
                 </svg>
                 View Site
               </a>
+              <button onClick={() => { goTab('overview'); setTourActive(true) }}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold transition-colors shrink-0"
+                style={{ background: 'rgba(255,152,0,0.1)', color: '#b45309' }} title="Take a Tour">
+                <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                </svg>
+                <span className="hidden sm:inline">Take a Tour</span>
+              </button>
             </div>
           </header>
 
@@ -1687,6 +1782,10 @@ export default function AdminDashboard() {
           </main>
         </div>
       </div>
+
+      {tourActive && (
+        <AdminTour steps={TOUR_STEPS} onNavigateTab={t => goTab(t as AdminTab)} onClose={closeTour} />
+      )}
     </div>
   )
 }

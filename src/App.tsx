@@ -25,7 +25,6 @@ const TermsOfServicePage   = lazy(() => import('./pages/TermsOfServicePage'))
 const CookiePolicyPage     = lazy(() => import('./pages/CookiePolicyPage'))
 const ShippingPolicyPage   = lazy(() => import('./pages/ShippingPolicyPage'))
 const InsuranceTermsPage   = lazy(() => import('./pages/InsuranceTermsPage'))
-const CareersPage          = lazy(() => import('./pages/CareersPage'))
 const BlogPage             = lazy(() => import('./pages/BlogPage'))
 const PressPage            = lazy(() => import('./pages/PressPage'))
 const HelpCenterPage       = lazy(() => import('./pages/HelpCenterPage'))
@@ -211,7 +210,6 @@ export default function App() {
             <Route path="/legal/cookies"      element={<CookiePolicyPage />} />
             <Route path="/legal/shipping"     element={<ShippingPolicyPage />} />
             <Route path="/legal/insurance"    element={<InsuranceTermsPage />} />
-            <Route path="/careers"            element={<CareersPage />} />
             <Route path="/blog"               element={<BlogPage />} />
             <Route path="/press"              element={<PressPage />} />
             <Route path="/help"               element={<HelpCenterPage />} />

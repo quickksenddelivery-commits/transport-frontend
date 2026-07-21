@@ -9,7 +9,6 @@ const YEAR = new Date().getFullYear()
 const LINKS: Record<string, { label: string; href: string }[]> = {
   Company: [
     { label: 'About Us',     href: '/about' },
-    { label: 'Careers',      href: '/careers' },
   ],
   Services: [
     { label: 'Express Delivery',   href: '/services' },

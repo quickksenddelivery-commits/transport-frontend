@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { JSX } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api, type AdminShipment, type ShipStatus, type ShipEvent } from '../lib/api'
+import { geocodeLocation } from '../lib/geocode'
+import GeoStatus from '../components/GeoStatus'
 
 /* ─── Helpers ────────────────────────────────────────────────── */
 const STATUS_CFG: Record<ShipStatus, { label: string; color: string; bg: string; grad: string }> = {
@@ -62,6 +64,80 @@ export default function AdminShipmentDetail() {
   const [updating, setUpdating]       = useState(false)
   const [updateErr, setUpdateErr]     = useState('')
 
+  const [notifyBanner, setNotifyBanner] = useState<{ ok: boolean; text: string } | null>(null)
+
+  // Add timeline event form
+  const [addDesc, setAddDesc] = useState('')
+  const [addLoc, setAddLoc] = useState('')
+  const [addLat, setAddLat] = useState('')
+  const [addLng, setAddLng] = useState('')
+  const [addGeoStatus, setAddGeoStatus] = useState<'idle' | 'checking' | 'found' | 'notfound'>('idle')
+  const [addDate, setAddDate] = useState(todayStr())
+  const [addTime, setAddTime] = useState(nowTime())
+  const [addType, setAddType] = useState<ShipEvent['type']>('info')
+  const [addBusy, setAddBusy] = useState(false)
+  const addGeoReq = useRef(0)
+
+  const setAddLocation = (v: string) => {
+    setAddLoc(v)
+    setAddGeoStatus('idle')
+    setAddLat('')
+    setAddLng('')
+  }
+
+  const resolveAddLocation = async (value?: string) => {
+    const v = (value ?? addLoc).trim()
+    if (!v) { setAddGeoStatus('idle'); return }
+    setAddGeoStatus('checking')
+    const reqId = ++addGeoReq.current
+    const result = await geocodeLocation(v)
+    if (reqId !== addGeoReq.current) return
+    if (result) {
+      setAddLat(String(result.lat))
+      setAddLng(String(result.lng))
+      setAddGeoStatus('found')
+    } else {
+      setAddGeoStatus('notfound')
+    }
+  }
+
+  // Edit timeline event state
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editDesc, setEditDesc] = useState('')
+  const [editLoc, setEditLoc] = useState('')
+  const [editLat, setEditLat] = useState('')
+  const [editLng, setEditLng] = useState('')
+  const [editGeoStatus, setEditGeoStatus] = useState<'idle' | 'checking' | 'found' | 'notfound'>('idle')
+  const [editDate, setEditDate] = useState('')
+  const [editTime, setEditTime] = useState('')
+  const [editType, setEditType] = useState<ShipEvent['type']>('info')
+  const [editBusy, setEditBusy] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const editGeoReq = useRef(0)
+
+  const setEditLocation = (v: string) => {
+    setEditLoc(v)
+    setEditGeoStatus('idle')
+    setEditLat('')
+    setEditLng('')
+  }
+
+  const resolveEditLocation = async () => {
+    const v = editLoc.trim()
+    if (!v) { setEditGeoStatus('idle'); return }
+    setEditGeoStatus('checking')
+    const reqId = ++editGeoReq.current
+    const result = await geocodeLocation(v)
+    if (reqId !== editGeoReq.current) return
+    if (result) {
+      setEditLat(String(result.lat))
+      setEditLng(String(result.lng))
+      setEditGeoStatus('found')
+    } else {
+      setEditGeoStatus('notfound')
+    }
+  }
+
   useEffect(() => {
     if (!id) return
     api.getShipment(id)
@@ -78,7 +154,7 @@ export default function AdminShipmentDetail() {
       await api.updateShipment(ship.id, { status: newStatus })
       const desc = eventNote.trim() || `Status updated to: ${STATUS_CFG[newStatus].label}`
       const loc  = eventLoc.trim()  || 'Accessiblexpress Control Centre'
-      const ev: Omit<ShipEvent, '_id'> = { time: nowTime(), date: todayStr(), location: loc, desc, type: 'sort' }
+      const ev: Omit<ShipEvent, '_id'> = { time: nowTime(), date: todayStr(), location: loc, desc, type: 'info' }
       const updated = await api.addEvent(ship.id, ev)
       setShip(updated)
       setShowUpdate(false)
@@ -88,6 +164,88 @@ export default function AdminShipmentDetail() {
       setUpdateErr((err as Error).message || 'Update failed.')
     } finally {
       setUpdating(false)
+    }
+  }
+
+  const handleAddEvent = async () => {
+    if (!ship || !addDesc.trim()) return
+    setAddBusy(true)
+    try {
+      const updated = await api.addEvent(ship.id, {
+        desc: addDesc.trim(),
+        location: addLoc.trim() || 'Accessiblexpress Control Centre',
+        lat: addLat ? parseFloat(addLat) : undefined,
+        lng: addLng ? parseFloat(addLng) : undefined,
+        date: addDate, time: addTime, type: addType,
+      })
+      setShip(updated)
+      if (addType === 'exception' || addType === 'transit') {
+        if (updated.notifiedOnLastUpdate) {
+          setNotifyBanner({ ok: true, text: `Customer notified by email at ${updated.recipient.email || '—'}` })
+        } else if (updated.notifyErrorOnLastUpdate) {
+          setNotifyBanner({ ok: false, text: `Event saved, but the notification email failed to send: ${updated.notifyErrorOnLastUpdate}` })
+        } else if (!updated.recipient.email) {
+          setNotifyBanner({ ok: false, text: 'No notification sent — recipient has no email on file' })
+        }
+        setTimeout(() => setNotifyBanner(null), 6000)
+      }
+      setAddDesc('')
+      setAddLoc('')
+      setAddLat('')
+      setAddLng('')
+      setAddDate(todayStr())
+      setAddTime(nowTime())
+      setAddType('info')
+    } catch (err) {
+      alert((err as Error).message || 'Failed to add event.')
+    } finally {
+      setAddBusy(false)
+    }
+  }
+
+  const startEdit = (ev: ShipEvent) => {
+    setEditId(ev._id ?? null)
+    setEditDesc(ev.desc)
+    setEditLoc(ev.location)
+    setEditLat(ev.lat != null ? String(ev.lat) : '')
+    setEditLng(ev.lng != null ? String(ev.lng) : '')
+    setEditGeoStatus(ev.lat != null && ev.lng != null ? 'found' : 'idle')
+    setEditDate(ev.date)
+    setEditTime(ev.time)
+    setEditType(ev.type)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!ship || !editId) return
+    setEditBusy(true)
+    try {
+      const updated = await api.updateEvent(ship.id, editId, {
+        desc: editDesc.trim(),
+        location: editLoc.trim(),
+        lat: editLat ? parseFloat(editLat) : undefined,
+        lng: editLng ? parseFloat(editLng) : undefined,
+        date: editDate, time: editTime, type: editType,
+      })
+      setShip(updated)
+      setEditId(null)
+    } catch (err) {
+      alert((err as Error).message || 'Failed to update event.')
+    } finally {
+      setEditBusy(false)
+    }
+  }
+
+  const handleDeleteEvent = async (eventId: string) => {
+    if (!ship || !confirm('Delete this timeline event?')) return
+    setDeletingId(eventId)
+    try {
+      const updated = await api.deleteEvent(ship.id, eventId)
+      setShip(updated)
+      if (editId === eventId) setEditId(null)
+    } catch (err) {
+      alert((err as Error).message || 'Failed to delete event.')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -266,39 +424,177 @@ export default function AdminShipmentDetail() {
               <span className="text-xs text-slate-400">{ship.events.length} event{ship.events.length !== 1 ? 's' : ''}</span>
             </div>
 
+            {notifyBanner && (
+              <div className={`m-4 mb-0 rounded-xl p-3 text-xs flex items-center gap-2 border ${notifyBanner.ok ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                {notifyBanner.text}
+              </div>
+            )}
+
             {events.length === 0 ? (
               <div className="flex-1 flex items-center justify-center py-12 text-slate-400 text-sm">No events yet</div>
             ) : (
               <div className="p-5 space-y-0 overflow-y-auto flex-1">
                 {events.map((ev, i) => (
-                  <div key={ev._id ?? i} className="flex gap-3">
-                    <div className="flex flex-col items-center">
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border-2 mt-0.5"
-                        style={i === 0
-                          ? { background: cfg.grad, color: 'white', borderColor: cfg.color }
-                          : { background: '#f8fafc', color: '#64748b', borderColor: '#e2e8f0' }}
-                      >
-                        {evtIcon(ev.type)}
+                  <div key={ev._id ?? i}>
+                    {editId === ev._id ? (
+                      /* ── Inline edit form ── */
+                      <div className="border border-yellow-300 rounded-2xl p-4 bg-yellow-50 mb-3">
+                        <p className="text-xs font-bold text-yellow-700 uppercase tracking-wide mb-3">Edit Event</p>
+                        <div className="grid sm:grid-cols-2 gap-3 mb-3">
+                          <div className="sm:col-span-2">
+                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Description</label>
+                            <input value={editDesc} onChange={e => setEditDesc(e.target.value)}
+                              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-yellow-400" />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Location</label>
+                            <input value={editLoc} onChange={e => setEditLocation(e.target.value)} onBlur={resolveEditLocation}
+                              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-yellow-400" />
+                            <GeoStatus status={editGeoStatus} />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Type</label>
+                            <select value={editType} onChange={e => setEditType(e.target.value as ShipEvent['type'])}
+                              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-yellow-400 bg-white">
+                              {(['pickup','transit','delivery','exception','info'] as const).map(t => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Date</label>
+                            <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+                              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-yellow-400" />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Time</label>
+                            <input type="time" value={editTime} onChange={e => setEditTime(e.target.value)}
+                              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-yellow-400" />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={handleSaveEdit} disabled={editBusy}
+                            className="py-2 px-5 rounded-xl text-xs font-bold disabled:opacity-60 transition-all hover:opacity-90"
+                            style={{ background: '#FF9800', color: '#0f0900' }}>
+                            {editBusy ? 'Saving…' : 'Save'}
+                          </button>
+                          <button onClick={() => setEditId(null)}
+                            className="px-5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                            Cancel
+                          </button>
+                        </div>
                       </div>
-                      {i < events.length - 1 && (
-                        <div className="w-px flex-1 mt-2 mb-1 min-h-[12px]" style={{ background: i === 0 ? `${cfg.color}40` : '#e2e8f0' }} />
-                      )}
-                    </div>
-                    <div className={`pb-5 flex-1 ${i > 0 ? 'opacity-75' : ''}`}>
-                      <div className="flex items-start justify-between gap-2 flex-wrap mb-0.5">
-                        <p className="text-slate-800 text-xs font-bold leading-snug">{ev.location || '—'}</p>
-                        {i === 0 && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold text-white shrink-0" style={{ background: cfg.color }}>Latest</span>
-                        )}
+                    ) : (
+                      <div className="flex gap-3 group">
+                        <div className="flex flex-col items-center">
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border-2 mt-0.5"
+                            style={i === 0
+                              ? { background: cfg.grad, color: 'white', borderColor: cfg.color }
+                              : { background: '#f8fafc', color: '#64748b', borderColor: '#e2e8f0' }}
+                          >
+                            {evtIcon(ev.type)}
+                          </div>
+                          {i < events.length - 1 && (
+                            <div className="w-px flex-1 mt-2 mb-1 min-h-[12px]" style={{ background: i === 0 ? `${cfg.color}40` : '#e2e8f0' }} />
+                          )}
+                        </div>
+                        <div className={`pb-5 flex-1 flex items-start justify-between gap-2 ${i > 0 ? 'opacity-75' : ''}`}>
+                          <div>
+                            <div className="flex items-start gap-2 flex-wrap mb-0.5">
+                              <p className="text-slate-800 text-xs font-bold leading-snug">{ev.location || '—'}</p>
+                              {i === 0 && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold text-white shrink-0" style={{ background: cfg.color }}>Latest</span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 mb-1">{ev.date} {ev.time}</p>
+                            <p className="text-slate-600 text-xs leading-relaxed">{ev.desc}</p>
+                          </div>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            <button onClick={() => startEdit(ev)} title="Edit event"
+                              className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}><path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
+                            </button>
+                            <button onClick={() => ev._id && handleDeleteEvent(ev._id)} disabled={deletingId === ev._id} title="Delete event"
+                              className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors disabled:opacity-40">
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}><path d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-[10px] text-slate-400 mb-1">{ev.date} {ev.time}</p>
-                      <p className="text-slate-600 text-xs leading-relaxed">{ev.desc}</p>
-                    </div>
+                    )}
                   </div>
                 ))}
               </div>
             )}
+
+            {/* ── Add Timeline Event ── */}
+            <div className="p-5 border-t border-slate-100">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}><path d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                Add Timeline Event
+              </p>
+
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Quick Templates</p>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {([
+                  { label: 'Order Received',    desc: 'Shipment order received and confirmed.',                        loc: 'Accessiblexpress Control Centre', type: 'info'      as const },
+                  { label: 'Picked Up',         desc: 'Package collected from sender.',                               loc: 'Sender Location',                 type: 'pickup'    as const },
+                  { label: 'At Sorting Hub',    desc: 'Package arrived at sorting facility and is being processed.',  loc: 'Sorting Hub',                     type: 'transit'   as const },
+                  { label: 'Departed Origin',   desc: 'Package has departed the origin facility.',                    loc: 'Origin Facility',                 type: 'transit'   as const },
+                  { label: 'In Transit',        desc: 'Package is in transit to the destination.',                    loc: 'In Transit',                      type: 'transit'   as const },
+                  { label: 'Arrived at Hub',    desc: 'Package arrived at destination hub.',                          loc: 'Destination Hub',                 type: 'transit'   as const },
+                  { label: 'Customs Clearance', desc: 'Package cleared customs inspection.',                          loc: 'Customs',                         type: 'transit'   as const },
+                  { label: 'Out for Delivery',  desc: 'Package is out for delivery with the courier.',                loc: 'Local Delivery Hub',              type: 'delivery'  as const },
+                  { label: 'Delivered',         desc: 'Package successfully delivered to the recipient.',             loc: 'Recipient Address',               type: 'delivery'  as const },
+                  { label: 'Failed Attempt',    desc: 'Delivery attempt failed — recipient unavailable.',             loc: 'Recipient Address',               type: 'exception' as const },
+                  { label: 'Delay',             desc: 'Shipment delayed due to unforeseen circumstances.',            loc: 'In Transit',                      type: 'exception' as const },
+                  { label: 'Held at Customs',   desc: 'Package held at customs pending clearance.',                   loc: 'Customs',                         type: 'exception' as const },
+                ] as { label: string; desc: string; loc: string; type: ShipEvent['type'] }[]).map(t => (
+                  <button key={t.label}
+                    onClick={() => { setAddDesc(t.desc); setAddLocation(t.loc); setAddType(t.type); resolveAddLocation(t.loc) }}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:border-yellow-400 hover:bg-yellow-50 hover:text-yellow-800 transition-all">
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-3 mb-3">
+                <div className="sm:col-span-2">
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Description *</label>
+                  <input value={addDesc} onChange={e => setAddDesc(e.target.value)}
+                    placeholder="e.g. Package arrived at sorting facility"
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-yellow-400" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Location</label>
+                  <input value={addLoc} onChange={e => setAddLocation(e.target.value)} onBlur={() => resolveAddLocation()}
+                    placeholder="e.g. Dubai Cargo Hub"
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-yellow-400" />
+                  <GeoStatus status={addGeoStatus} />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Type</label>
+                  <select value={addType} onChange={e => setAddType(e.target.value as ShipEvent['type'])}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-yellow-400 bg-white">
+                    {(['pickup','transit','delivery','exception','info'] as const).map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Date</label>
+                  <input type="date" value={addDate} onChange={e => setAddDate(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-yellow-400" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Time</label>
+                  <input type="time" value={addTime} onChange={e => setAddTime(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-yellow-400" />
+                </div>
+              </div>
+              <button onClick={handleAddEvent} disabled={addBusy || !addDesc.trim()}
+                className="py-2.5 px-6 rounded-xl text-sm font-bold disabled:opacity-60 transition-all hover:opacity-90"
+                style={{ background: '#FF9800', color: '#0f0900' }}>
+                {addBusy ? 'Adding…' : 'Add Event'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

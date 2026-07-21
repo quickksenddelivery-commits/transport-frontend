@@ -196,7 +196,7 @@ const SHIPMENTS: Record<string, {
     ],
     alerts: [
       { type: 'success', text: 'Package delivered successfully. Proof of delivery sent to your email.' },
-      { type: 'info',    text: 'Invoice and customs documents available for download below.' },
+      { type: 'info',    text: 'This is a sample tracking result — try a real tracking number to see full shipment details and downloadable documents.' },
     ],
   },
 }
@@ -385,34 +385,38 @@ function PackageDetails({ ship }: { ship: typeof SHIPMENTS[string] }) {
         ))}
       </div>
 
-      {/* Documents */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-        <h4 className="font-bold text-slate-800 mb-4">Shipping Documents</h4>
-        <div className="grid md:grid-cols-3 gap-3">
-          {([
-            { label: 'Air Waybill (AWB)',   path: 'awb' },
-            { label: 'Commercial Invoice',  path: 'invoice' },
-            { label: 'Packing List',        path: 'packing-list' },
-          ] as const).map(({ label, path }) => (
-            <a
-              key={path}
-              href={`${BASE}/api/documents/${ship.trackingNum}/${path}`}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50 transition-all group text-left"
-            >
-              <svg className="w-8 h-8 text-red-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M14.5 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V7.5L14.5 2z"/>
-                <polyline points="14 2 14 8 20 8" fill="none" stroke="white" strokeWidth="1.5"/>
-              </svg>
-              <div>
-                <p className="text-slate-800 text-xs font-semibold">{label}</p>
-                <p className="text-slate-400 text-[10px]">PDF · Download</p>
-              </div>
-            </a>
-          ))}
+      {/* Documents — only real, API-backed shipments have generated PDFs.
+          The hardcoded demo numbers (SAMPLE_NUMBERS) aren't real database
+          records, so pointing these links at the backend would 404. */}
+      {!SAMPLE_NUMBERS.includes(ship.trackingNum) && (
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+          <h4 className="font-bold text-slate-800 mb-4">Shipping Documents</h4>
+          <div className="grid md:grid-cols-3 gap-3">
+            {([
+              { label: 'Air Waybill (AWB)',   path: 'awb' },
+              { label: 'Commercial Invoice',  path: 'invoice' },
+              { label: 'Packing List',        path: 'packing-list' },
+            ] as const).map(({ label, path }) => (
+              <a
+                key={path}
+                href={`${BASE}/api/documents/${ship.trackingNum}/${path}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50 transition-all group text-left"
+              >
+                <svg className="w-8 h-8 text-red-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M14.5 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V7.5L14.5 2z"/>
+                  <polyline points="14 2 14 8 20 8" fill="none" stroke="white" strokeWidth="1.5"/>
+                </svg>
+                <div>
+                  <p className="text-slate-800 text-xs font-semibold">{label}</p>
+                  <p className="text-slate-400 text-[10px]">PDF · Download</p>
+                </div>
+              </a>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

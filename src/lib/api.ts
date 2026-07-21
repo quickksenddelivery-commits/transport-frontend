@@ -277,4 +277,12 @@ export const api = {
     const s = ((r.data as Record<string, unknown>)?.shipment ?? r.shipment ?? r) as Record<string, unknown>
     return normalizeShipment(s)
   },
+
+  geocode: async (q: string) => {
+    const res = await request<unknown>('GET', `/api/admin/geocode?q=${encodeURIComponent(q)}`)
+    const r = res as Record<string, unknown>
+    const data = r.data as Record<string, unknown> | undefined
+    const result = data?.result as { lat: number; lng: number } | null | undefined
+    return result ?? null
+  },
 }
