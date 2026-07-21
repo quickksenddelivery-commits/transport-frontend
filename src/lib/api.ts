@@ -1,4 +1,21 @@
-export const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:5000'
+// Opening the dev server from a phone on the same network (e.g.
+// http://192.168.1.66:5183) while VITE_API_URL is still "http://localhost:5000"
+// fails every request with "Failed to fetch" — on the phone, "localhost"
+// resolves to the phone itself, not the machine running the backend. If the
+// page itself isn't being viewed from localhost but the configured target
+// still says localhost, swap in the page's own hostname instead; a properly
+// configured non-local VITE_API_URL (e.g. a real production API domain) is
+// always left untouched.
+function resolveBase(): string {
+  const configured = import.meta.env.VITE_API_URL as string | undefined
+  if (typeof window === 'undefined') return configured || 'http://localhost:5000'
+  const { protocol, hostname } = window.location
+  const pageIsLocal = hostname === 'localhost' || hostname === '127.0.0.1'
+  const configuredIsLocal = !configured || /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(configured)
+  if (configured && (pageIsLocal || !configuredIsLocal)) return configured
+  return `${protocol}//${hostname}:5000`
+}
+export const BASE = resolveBase()
 
 // ── Token helpers ──────────────────────────────────────────────────────────
 export const TOKEN_KEY = 'qsd_admin_token'
