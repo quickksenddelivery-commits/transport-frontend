@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import type { JSX } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { api, clearToken, type AdminShipment, type ShipStatus, type ShipEvent, type Subscriber } from '../lib/api'
+import { getCityCoords } from '../data/cityCoords'
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 type AdminTab = 'overview' | 'shipments' | 'create' | 'track' | 'subscribers'
@@ -237,7 +238,7 @@ function ShipmentsTab({
   shipments, onUpdate, onDelete, onEdit,
 }: {
   shipments: AdminShipment[]
-  onUpdate: (id: string, status: ShipStatus, note?: string) => Promise<void>
+  onUpdate: (id: string, status: ShipStatus, note?: string) => Promise<{ notified: boolean; notifyError?: string }>
   onDelete: (id: string) => Promise<void>
   onEdit: (id: string, body: unknown) => Promise<void>
 }) {
@@ -911,7 +912,7 @@ function CreateTab({ onCreate }: { onCreate: (body: Omit<AdminShipment, 'id' | '
 }
 
 /* ─── Track Tab ──────────────────────────────────────────────────────────── */
-function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdate: (id: string, status: ShipStatus, note?: string, location?: string) => Promise<void> }) {
+function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdate: (id: string, status: ShipStatus, note?: string, location?: string) => Promise<{ notified: boolean; notifyError?: string }> }) {
   const [query, setQuery] = useState('')
   const [result, setResult] = useState<AdminShipment | null>(null)
   const [notFound, setNotFound] = useState(false)
@@ -919,24 +920,47 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
   const [eventNote, setEventNote] = useState('')
   const [eventLocation, setEventLocation] = useState('')
   const [updateDone, setUpdateDone] = useState(false)
+  const [notifyBanner, setNotifyBanner] = useState<{ ok: boolean; text: string } | null>(null)
 
   // Add event form
   const [addDesc, setAddDesc] = useState('')
   const [addLoc, setAddLoc] = useState('')
+  const [addLat, setAddLat] = useState('')
+  const [addLng, setAddLng] = useState('')
   const [addDate, setAddDate] = useState(todayStr())
   const [addTime, setAddTime] = useState(nowTime())
   const [addType, setAddType] = useState<ShipEvent['type']>('info')
   const [addBusy, setAddBusy] = useState(false)
 
+  const setAddLocation = (v: string) => {
+    setAddLoc(v)
+    const coords = getCityCoords(v)
+    if (coords && !addLat && !addLng) {
+      setAddLat(String(coords[0]))
+      setAddLng(String(coords[1]))
+    }
+  }
+
   // Edit event state
   const [editId, setEditId] = useState<string | null>(null)
   const [editDesc, setEditDesc] = useState('')
   const [editLoc, setEditLoc] = useState('')
+  const [editLat, setEditLat] = useState('')
+  const [editLng, setEditLng] = useState('')
   const [editDate, setEditDate] = useState('')
   const [editTime, setEditTime] = useState('')
   const [editType, setEditType] = useState<ShipEvent['type']>('info')
   const [editBusy, setEditBusy] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const setEditLocation = (v: string) => {
+    setEditLoc(v)
+    const coords = getCityCoords(v)
+    if (coords && !editLat && !editLng) {
+      setEditLat(String(coords[0]))
+      setEditLng(String(coords[1]))
+    }
+  }
 
   const search = () => {
     const q = query.trim().toLowerCase()
@@ -957,12 +981,22 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
     const loc = eventLocation || 'Accessiblexpress Control Centre'
     const newEvent: ShipEvent = { time: nowTime(), date: todayStr(), location: loc, desc, type: 'sort' }
     try {
-      await onUpdate(result.id, newStatus, eventNote || undefined, eventLocation || undefined)
+      const { notified, notifyError } = await onUpdate(result.id, newStatus, eventNote || undefined, eventLocation || undefined)
       setResult(prev => prev ? { ...prev, status: newStatus, events: [...prev.events, newEvent] } : null)
       setEventNote('')
       setEventLocation('')
       setUpdateDone(true)
       setTimeout(() => setUpdateDone(false), 3000)
+      if (notified) {
+        setNotifyBanner({ ok: true, text: `Customer notified by email at ${result.recipient.email || '—'}` })
+      } else if (notifyError) {
+        setNotifyBanner({ ok: false, text: `Status saved, but the notification email failed to send: ${notifyError}` })
+      } else if (!result.recipient.email) {
+        setNotifyBanner({ ok: false, text: 'No notification sent — recipient has no email on file' })
+      } else {
+        setNotifyBanner(null)
+      }
+      setTimeout(() => setNotifyBanner(null), 6000)
     } catch (err) {
       alert((err as Error).message || 'Update failed. Please try again.')
     }
@@ -972,10 +1006,28 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
     if (!result || !addDesc.trim()) return
     setAddBusy(true)
     try {
-      const updated = await api.addEvent(result.id, { desc: addDesc.trim(), location: addLoc.trim() || 'Accessiblexpress Control Centre', date: addDate, time: addTime, type: addType })
+      const updated = await api.addEvent(result.id, {
+        desc: addDesc.trim(),
+        location: addLoc.trim() || 'Accessiblexpress Control Centre',
+        lat: addLat ? parseFloat(addLat) : undefined,
+        lng: addLng ? parseFloat(addLng) : undefined,
+        date: addDate, time: addTime, type: addType,
+      })
       setResult(updated)
+      if (addType === 'exception' || addType === 'transit') {
+        if (updated.notifiedOnLastUpdate) {
+          setNotifyBanner({ ok: true, text: `Customer notified by email at ${updated.recipient.email || '—'}` })
+        } else if (updated.notifyErrorOnLastUpdate) {
+          setNotifyBanner({ ok: false, text: `Event saved, but the notification email failed to send: ${updated.notifyErrorOnLastUpdate}` })
+        } else if (!updated.recipient.email) {
+          setNotifyBanner({ ok: false, text: 'No notification sent — recipient has no email on file' })
+        }
+        setTimeout(() => setNotifyBanner(null), 6000)
+      }
       setAddDesc('')
       setAddLoc('')
+      setAddLat('')
+      setAddLng('')
       setAddDate(todayStr())
       setAddTime(nowTime())
       setAddType('info')
@@ -990,6 +1042,8 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
     setEditId(ev._id ?? null)
     setEditDesc(ev.desc)
     setEditLoc(ev.location)
+    setEditLat(ev.lat != null ? String(ev.lat) : '')
+    setEditLng(ev.lng != null ? String(ev.lng) : '')
     setEditDate(ev.date)
     setEditTime(ev.time)
     setEditType(ev.type)
@@ -999,7 +1053,13 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
     if (!result || !editId) return
     setEditBusy(true)
     try {
-      const updated = await api.updateEvent(result.id, editId, { desc: editDesc.trim(), location: editLoc.trim(), date: editDate, time: editTime, type: editType })
+      const updated = await api.updateEvent(result.id, editId, {
+        desc: editDesc.trim(),
+        location: editLoc.trim(),
+        lat: editLat ? parseFloat(editLat) : undefined,
+        lng: editLng ? parseFloat(editLng) : undefined,
+        date: editDate, time: editTime, type: editType,
+      })
       setResult(updated)
       setEditId(null)
     } catch (err) {
@@ -1055,6 +1115,15 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
 
       {result && (
         <div className="max-w-2xl space-y-4">
+          {notifyBanner && (
+            <div className={`rounded-xl p-3.5 text-sm flex items-center gap-2 border ${notifyBanner.ok ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+              {notifyBanner.ok
+                ? <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}><path d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>
+                : <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+              }
+              {notifyBanner.text}
+            </div>
+          )}
           {/* Status header */}
           <div className="rounded-2xl p-5 text-white" style={{ background: STATUS_CFG[result.status].color }}>
             <div className="flex items-start justify-between gap-4">
@@ -1113,8 +1182,13 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
                         </div>
                         <div>
                           <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Location</label>
-                          <input value={editLoc} onChange={e => setEditLoc(e.target.value)}
+                          <input value={editLoc} onChange={e => setEditLocation(e.target.value)}
                             className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-yellow-400" />
+                          {editLoc && (
+                            getCityCoords(editLoc)
+                              ? <p className="text-[10px] text-green-600 mt-1">📍 Coordinates recognized</p>
+                              : <p className="text-[10px] text-amber-600 mt-1">⚠ Not recognized — set lat/lng below</p>
+                          )}
                         </div>
                         <div>
                           <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Type</label>
@@ -1122,6 +1196,16 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
                             className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-yellow-400 bg-white">
                             {(['pickup','transit','delivery','exception','info'] as const).map(t => <option key={t} value={t}>{t}</option>)}
                           </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Latitude <span className="normal-case font-normal">(optional)</span></label>
+                          <input type="number" step="any" value={editLat} onChange={e => setEditLat(e.target.value)}
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-yellow-400" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Longitude <span className="normal-case font-normal">(optional)</span></label>
+                          <input type="number" step="any" value={editLng} onChange={e => setEditLng(e.target.value)}
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-yellow-400" />
                         </div>
                         <div>
                           <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Date</label>
@@ -1200,7 +1284,7 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
                 { label: 'Held at Customs',   desc: 'Package held at customs pending clearance.',                   loc: 'Customs',                         type: 'exception' as const },
               ] as { label: string; desc: string; loc: string; type: ShipEvent['type'] }[]).map(t => (
                 <button key={t.label}
-                  onClick={() => { setAddDesc(t.desc); setAddLoc(t.loc); setAddType(t.type) }}
+                  onClick={() => { setAddDesc(t.desc); setAddLocation(t.loc); setAddType(t.type) }}
                   className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:border-yellow-400 hover:bg-yellow-50 hover:text-yellow-800 transition-all">
                   {t.label}
                 </button>
@@ -1216,9 +1300,14 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
               </div>
               <div>
                 <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Location</label>
-                <input value={addLoc} onChange={e => setAddLoc(e.target.value)}
+                <input value={addLoc} onChange={e => setAddLocation(e.target.value)}
                   placeholder="e.g. Dubai Cargo Hub"
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-yellow-400" />
+                {addLoc && (
+                  getCityCoords(addLoc)
+                    ? <p className="text-[10px] text-green-600 mt-1">📍 Coordinates recognized — will show on the tracking map</p>
+                    : <p className="text-[10px] text-amber-600 mt-1">⚠ Not a recognized city — add coordinates below so this appears on the map</p>
+                )}
               </div>
               <div>
                 <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Type</label>
@@ -1226,6 +1315,18 @@ function TrackTab({ shipments, onUpdate }: { shipments: AdminShipment[]; onUpdat
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-yellow-400 bg-white">
                   {(['pickup','transit','delivery','exception','info'] as const).map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Latitude <span className="normal-case font-normal">(optional)</span></label>
+                <input type="number" step="any" value={addLat} onChange={e => setAddLat(e.target.value)}
+                  placeholder="e.g. 6.5244"
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-yellow-400" />
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Longitude <span className="normal-case font-normal">(optional)</span></label>
+                <input type="number" step="any" value={addLng} onChange={e => setAddLng(e.target.value)}
+                  placeholder="e.g. 3.3792"
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-yellow-400" />
               </div>
               <div>
                 <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Date</label>
@@ -1425,7 +1526,7 @@ export default function AdminDashboard() {
   }
 
   const handleUpdate = async (id: string, status: ShipStatus, note?: string, location?: string) => {
-    await api.updateShipment(id, { status })
+    const updatedShipment = await api.updateShipment(id, { status })
     const desc = note || `Status updated to: ${STATUS_CFG[status].label}`
     const loc = location || 'Accessiblexpress Control Centre'
     const newEvent: ShipEvent = { time: nowTime(), date: todayStr(), location: loc, desc, type: 'sort' }
@@ -1433,6 +1534,7 @@ export default function AdminDashboard() {
     setShipments(prev => prev.map(s =>
       s.id !== id ? s : { ...s, status, events: [...s.events, newEvent] }
     ))
+    return { notified: updatedShipment.notifiedOnLastUpdate ?? false, notifyError: updatedShipment.notifyErrorOnLastUpdate }
   }
 
   const handleDelete = async (id: string) => {

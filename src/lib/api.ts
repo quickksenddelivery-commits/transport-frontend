@@ -23,6 +23,8 @@ export interface ShipEvent {
   time: string
   date: string
   location: string
+  lat?: number
+  lng?: number
   desc: string
   type: string
 }
@@ -55,6 +57,11 @@ export interface AdminShipment {
   deliveredAt?: string
   events: ShipEvent[]
   notes?: string
+  // Set only on the object returned from updateShipment/addEvent — reflects
+  // whether a customer notification email was sent by that specific call,
+  // not a persisted property of the shipment itself.
+  notifiedOnLastUpdate?: boolean
+  notifyErrorOnLastUpdate?: string
 }
 
 function normalizeShipment(s: Record<string, unknown>): AdminShipment {
@@ -233,8 +240,13 @@ export const api = {
   updateShipment: async (id: string, body: unknown) => {
     const res = await request<unknown>('PATCH', `/api/admin/shipments/${encodeURIComponent(id)}`, body)
     const r = res as Record<string, unknown>
-    const s = ((r.data as Record<string, unknown>)?.shipment ?? r.shipment ?? r) as Record<string, unknown>
-    return normalizeShipment(s)
+    const data = r.data as Record<string, unknown> | undefined
+    const s = (data?.shipment ?? r.shipment ?? r) as Record<string, unknown>
+    return {
+      ...normalizeShipment(s),
+      notifiedOnLastUpdate: Boolean(data?.notified),
+      notifyErrorOnLastUpdate: data?.notifyError as string | undefined,
+    }
   },
 
   deleteShipment: (id: string) =>
@@ -243,8 +255,13 @@ export const api = {
   addEvent: async (id: string, event: Omit<ShipEvent, '_id'>) => {
     const res = await request<unknown>('POST', `/api/admin/shipments/${encodeURIComponent(id)}/events`, event)
     const r = res as Record<string, unknown>
-    const s = ((r.data as Record<string, unknown>)?.shipment ?? r.shipment ?? r) as Record<string, unknown>
-    return normalizeShipment(s)
+    const data = r.data as Record<string, unknown> | undefined
+    const s = (data?.shipment ?? r.shipment ?? r) as Record<string, unknown>
+    return {
+      ...normalizeShipment(s),
+      notifiedOnLastUpdate: Boolean(data?.notified),
+      notifyErrorOnLastUpdate: data?.notifyError as string | undefined,
+    }
   },
 
   updateEvent: async (id: string, eventId: string, patch: Partial<Omit<ShipEvent, '_id'>>) => {
