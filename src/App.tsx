@@ -6,6 +6,7 @@ import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import QuickTrack from './components/QuickTrack'
 import ErrorBoundary from './components/ErrorBoundary'
+import TawkWidget from './components/TawkWidget'
 import { getToken } from './lib/api'
 
 const HomePage             = lazy(() => import('./pages/HomePage'))
@@ -157,6 +158,7 @@ function PublicLayout() {
       </PageTransition>
       <QuickTrack />
       <Footer />
+      <TawkWidget />
     </>
   )
 }
