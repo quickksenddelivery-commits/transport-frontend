@@ -1,19 +1,28 @@
+// The deployed backend (Render) — used as a last-resort fallback below, only
+// when nothing usable is configured for a real (non-local, non-LAN) domain.
+const PROD_API_FALLBACK = 'https://transport-backend-1-9zsn.onrender.com'
+
 // Opening the dev server from a phone on the same network (e.g.
 // http://192.168.1.66:5183) while VITE_API_URL is still "http://localhost:5000"
 // fails every request with "Failed to fetch" — on the phone, "localhost"
 // resolves to the phone itself, not the machine running the backend. If the
 // page itself isn't being viewed from localhost but the configured target
-// still says localhost, swap in the page's own hostname instead; a properly
-// configured non-local VITE_API_URL (e.g. a real production API domain) is
-// always left untouched.
+// still says localhost, swap in the page's own hostname instead (for LAN-IP
+// dev testing) or the known production API (for a real deployed domain that
+// simply never had VITE_API_URL configured). A properly configured non-local
+// VITE_API_URL is always left untouched.
 function resolveBase(): string {
   const configured = import.meta.env.VITE_API_URL as string | undefined
   if (typeof window === 'undefined') return configured || 'http://localhost:5000'
   const { protocol, hostname } = window.location
   const pageIsLocal = hostname === 'localhost' || hostname === '127.0.0.1'
   const configuredIsLocal = !configured || /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(configured)
+
   if (configured && (pageIsLocal || !configuredIsLocal)) return configured
-  return `${protocol}//${hostname}:5000`
+  if (pageIsLocal) return `${protocol}//${hostname}:5000`
+
+  const pageIsRawIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)
+  return pageIsRawIp ? `${protocol}//${hostname}:5000` : PROD_API_FALLBACK
 }
 export const BASE = resolveBase()
 
@@ -135,7 +144,18 @@ export interface Subscriber {
   active: boolean
 }
 
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 // ── Core fetch wrapper ─────────────────────────────────────────────────────
+// The backend is hosted on Render's free tier, which spins the instance down
+// after ~15 minutes idle — the first request after that can take 20+ seconds
+// to get a first byte. Some mobile networks/carriers kill a connection that's
+// gone that long without any data, which surfaces to the page as a generic
+// "Failed to fetch" network error (not an HTTP error status). Retrying once
+// almost always succeeds immediately, since the instance has finished
+// booting by the time the retry goes out.
 async function request<T>(
   method: string,
   path: string,
@@ -143,7 +163,7 @@ async function request<T>(
   extraHeaders?: Record<string, string>,
 ): Promise<T> {
   const token = getToken()
-  const res = await fetch(`${BASE}${path}`, {
+  const doFetch = () => fetch(`${BASE}${path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
@@ -152,6 +172,14 @@ async function request<T>(
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   })
+
+  let res: Response
+  try {
+    res = await doFetch()
+  } catch {
+    await sleep(1500)
+    res = await doFetch()
+  }
 
   if (res.status === 401) {
     clearToken()

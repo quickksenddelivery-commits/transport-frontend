@@ -20,7 +20,12 @@ export default function AdminLoginPage() {
       setToken(token)
       navigate('/admin')
     } catch (err) {
-      setError((err as Error).message || 'Invalid username or password.')
+      const message = (err as Error).message
+      setError(
+        message === 'Failed to fetch'
+          ? 'Could not reach the server. It may still be starting up after being idle — please wait a few seconds and try again.'
+          : message || 'Invalid username or password.'
+      )
       setLoading(false)
     }
   }
